@@ -29,7 +29,7 @@ aliases:
   #     echo $AFFECTED_ARGS
   - &dotnet_cache
     keys:
-      - dotnet-{{ checksum "ServiceBus/Rikarin.Network.ServiceBus.csproj" }}
+      - dotnet-{{ checksum "Rikarin.csproj" }}
 
 # -----------------------------------------------------------------------------------------
 # Job definitions. Jobs which are defined just here, will not run automatically. Each job
@@ -56,7 +56,7 @@ jobs:
           paths:
             - nugets
       - save_cache:
-          key: dotnet-{{ checksum "ServiceBus/Rikarin.Network.ServiceBus.csproj" }}
+          key: dotnet-{{ checksum "Rikarin.csproj" }}
           paths:
             - .nuget
       - store_artifacts:
