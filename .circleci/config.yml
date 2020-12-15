@@ -1,0 +1,111 @@
+version: 2.1
+
+aliases:
+  - &defaults
+    working_directory: ~/repo
+    docker:
+      - image: mcr.microsoft.com/dotnet/sdk:5.0
+  - &set_env
+    name: Setup Environment Variables
+    command: |
+      export NUGET_PACKAGES=$(pwd)/.nuget
+  #   command: |
+  #     if [[ $CIRCLE_PULL_REQUEST ]]
+  #     then
+  #       echo 'Fetching Base Commit from GitHub'
+  #       echo 'export CIRCLE_PR_NUMBER="${CIRCLE_PR_NUMBER:-${CIRCLE_PULL_REQUEST##*/}}"' >> $BASH_ENV
+  #       source $BASH_ENV
+  #       echo "export CIRCLE_PR_BASE_SHA=`curl -s https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/pulls/${CIRCLE_PR_NUMBER} | jq -r '.base.sha'`" >> $BASH_ENV
+  #       echo 'export AFFECTED_ARGS="--base ${CIRCLE_PR_BASE_SHA}"' >> $BASH_ENV
+  #     else
+  #       echo 'Fetching Base Commit from Deploy Cache'
+  #       if [[ ! -f dist/last-deploy.txt ]]
+  #       then
+  #         mkdir dist && git rev-parse HEAD~1 > dist/last-deploy.txt
+  #       fi
+  #       echo 'export AFFECTED_ARGS="--base $(cat dist/last-deploy.txt)"' >> $BASH_ENV
+  #     fi
+  #     source $BASH_ENV
+  #     echo $AFFECTED_ARGS
+  - &dotnet_cache
+    keys:
+      - dotnet-{{ checksum "ServiceBus/Rikarin.Network.ServiceBus.csproj" }}
+
+# -----------------------------------------------------------------------------------------
+# Job definitions. Jobs which are defined just here, will not run automatically. Each job
+# must be part of a workflow definition in order to run for PRs and push builds.
+# -----------------------------------------------------------------------------------------
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      - run: apt-get update && apt-get install -y openssh-client
+      - checkout
+      - run:
+          <<: *set_env
+      - restore_cache:
+          <<: *dotnet_cache
+      - run:
+          name: Build
+          command: |
+            VER=${CIRCLE_TAG/v/''}
+            dotnet pack -c Release -o ./nugets --version-suffix ${VER:-0.0.1}
+
+      - save_cache:
+          key: build-{{ .Environment.CIRCLE_WORKFLOW_ID }}
+          paths:
+            - nugets
+      - save_cache:
+          key: dotnet-{{ checksum "ServiceBus/Rikarin.Network.ServiceBus.csproj" }}
+          paths:
+            - .nuget
+      - store_artifacts:
+          path: nugets
+
+  # test:
+  #   <<: *defaults
+  #   steps:
+  #     - checkout
+  #     - run:
+  #         <<: *set_env
+  #     - restore_cache:
+  #         <<: *dotnet_cache
+  #     - run: dotnet test -c Release Communication.Tests/Rikarin.Network.Communication.Tests.csproj
+
+  publish:
+    <<: *defaults
+    steps:
+      - run: apt-get update && apt-get install -y openssh-client
+      - checkout
+      - run:
+          <<: *set_env
+      - restore_cache:
+          <<: *dotnet_cache
+      - restore_cache:
+          key: build-{{ .Environment.CIRCLE_WORKFLOW_ID }}
+      - run:
+          name: Publish to Nuget Repository
+          command: for i in nugets/*.nupkg; do dotnet nuget push -s https://api.nuget.org/v3/index.json -k $NUGET_TOKEN $i; done
+
+workflows:
+  version: 2
+  pr_check:
+    jobs:
+      # - test:
+      #     requires:
+      #       - install
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      - build:
+          filters:
+            tags:
+              only: /.*/
+      - publish:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v.*/ # runs for no branches and only for tags starting with 'v'
+            branches:
+              ignore: /.*/
