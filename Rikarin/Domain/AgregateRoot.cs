@@ -6,7 +6,7 @@ namespace Rikarin.Domain {
     }
 
     public abstract class AgregateRoot<T> : Entity<T>, IAgregateRoot<T> {
-        readonly List<IDomainEvent> _domainEvents = new List<IDomainEvent>();
+        readonly List<IDomainEvent> _domainEvents = new();
         public virtual IReadOnlyList<IDomainEvent> DomainEvents => _domainEvents;
 
 

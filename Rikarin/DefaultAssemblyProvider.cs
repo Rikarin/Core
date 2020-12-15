@@ -17,7 +17,7 @@ namespace Rikarin {
         }
 
         public IEnumerable<Assembly> GetAssemblies(string path, bool recursive) {
-            List<Assembly> assemblies = new List<Assembly>();
+            var assemblies = new List<Assembly>();
 
             assemblies.AddRange(GetAssembliesFromPath(path, recursive));
             return assemblies.Distinct().ToList();
